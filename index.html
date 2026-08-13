@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>無理やり！？ごちそうパズル</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      background-color: #f7f4ef;
+      color: #333;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 10px;
+      touch-action: manipulation;
+    }
+
+    .game-container {
+      width: 100%;
+      max-width: 480px;
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    header {
+      text-align: center;
+      border-bottom: 2px dashed #eee;
+      padding-bottom: 8px;
+    }
+    h1 { font-size: 18px; color: #ff5722; }
+    .theme-title { font-size: 15px; color: #d32f2f; margin-top: 4px; font-weight: bold; }
+
+    .canvas-area {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      background-color: #fafafa;
+      border: 2px solid #e0e0e0;
+      border-radius: 12px;
+      overflow: hidden;
+      touch-action: none;
+    }
+
+    .theme-silhouette {
+      position: absolute;
+      top: 10%;
+      left: 10%;
+      width: 80%;
+      height: 80%;
+      object-fit: contain;
+      opacity: 0.5;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .placed-food {
+      position: absolute;
+      width: 80px;
+      height: 80px;
+      object-fit: contain;
+      cursor: move;
+      z-index: 10;
+      user-select: none;
+      -webkit-user-drag: none;
+      transition: border 0.1s;
+    }
+
+    .tools-area {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .section-label { font-size: 12px; color: #888; font-weight: bold; }
+
+    .hand-container {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      padding: 5px 2px 10px 2px;
+      min-height: 85px;
+    }
+
+    .food-card {
+      flex: 0 0 70px;
+      height: 70px;
+      background: #ffffff;
+      border: 2px solid #ddd;
+      border-radius: 10px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+      transition: transform 0.1s;
+      user-select: none;
+    }
+    .food-card:active { transform: scale(0.95); }
+    .food-card img { width: 50px; height: 50px; object-fit: contain; pointer-events: none; }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 5px;
+    }
+    .btn {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      text-align: center;
+    }
+    .btn-primary { background: #ff5722; color: white; }
+    .btn-secondary { background: #eee; color: #555; }
+  </style>
+</head>
+<body>
+
+  <div class="game-container">
+    <header>
+      <h1>無理やり！？ごちそうパズル</h1>
+      <div class="theme-title" id="theme-display">お題：【-----】</div>
+    </header>
+
+    <div class="canvas-area" id="canvas-area">
+      <img src="" alt="お題シルエット" class="theme-silhouette" id="theme-img">
+    </div>
+
+    <div class="tools-area">
+      <div class="section-label">👇 カードタップで配置（ダブルタップで削除）</div>
+      
+      <div class="hand-container" id="hand-container"></div>
+
+      <div class="actions">
+        <button class="btn btn-secondary" onclick="resetGame()">リセット</button>
+        <button class="btn btn-primary" onclick="alert('第3週（DAY 5）で手描きデコペン＆言い訳機能を実装します！')">仕上げへ進む</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const themeList = [
+      { name: "高級料亭の舟盛り", img: "https://via.placeholder.com/300x300/e0e0e0/333333?text=Boat+Shape" },
+      { name: "世紀末のラーメンどんぶり", img: "https://via.placeholder.com/300x300/d1c4e9/333333?text=Ramen+Ramen" },
+      { name: "絶対に崩れるタワーパフェ", img: "https://via.placeholder.com/300x300/ffcdd2/333333?text=Parfait+Glass" }
+    ];
+
+    const foodList = [
+      { name: "アメリカンドッグ", img: "https://via.placeholder.com/100/ffcc80/333333?text=Hotdog" },
+      { name: "ショートケーキ", img: "https://via.placeholder.com/100/f8bbd0/333333?text=Cake" },
+      { name: "ちくわ", img: "https://via.placeholder.com/100/e1bee7/333333?text=Chikuwa" },
+      { name: "ブロッコリー", img: "https://via.placeholder.com/100/c8e6c9/333333?text=Broccoli" },
+      { name: "目玉焼き", img: "https://via.placeholder.com/100/fff59d/333333?text=Egg" },
+      { name: "たこ焼き", img: "https://via.placeholder.com/100/ffe0b2/333333?text=Takoyaki" },
+      { name: "エビフライ", img: "https://via.placeholder.com/100/ffab91/333333?text=Shrimp" },
+      { name: "バナナ", img: "https://via.placeholder.com/100/ffff8d/333333?text=Banana" },
+      { name: "ピザ", img: "https://via.placeholder.com/100/ff8a80/333333?text=Pizza" },
+      { name: "ドーナツ", img: "https://via.placeholder.com/100/ea80fc/333333?text=Donut" }
+    ];
+
+    // 重ね順を管理するカウンター変数
+    let highestZIndex = 10;
+
+    window.onload = function() {
+      resetGame();
+    };
+
+    function resetGame() {
+      const canvas = document.getElementById('canvas-area');
+      document.querySelectorAll('.placed-food').forEach(el => el.remove());
+      highestZIndex = 10;
+
+      const randomTheme = themeList[Math.floor(Math.random() * themeList.length)];
+      document.getElementById('theme-display').innerText = "お題：【" + randomTheme.name + "】";
+      document.getElementById('theme-img').src = randomTheme.img;
+
+      const shuffledFoods = [...foodList].sort(() => 0.5 - Math.random());
+      const selectedHand = shuffledFoods.slice(0, 5);
+
+      const handContainer = document.getElementById('hand-container');
+      handContainer.innerHTML = "";
+
+      selectedHand.forEach(food => {
+        const cardDiv = document.createElement('div');
+        cardDiv.className = 'food-card';
+        cardDiv.innerHTML = `<img src="${food.img}" alt="${food.name}">`;
+        cardDiv.onclick = function() { addFoodToCanvas(food.img); };
+        handContainer.appendChild(cardDiv);
+      });
+    }
+
+    function addFoodToCanvas(imgSrc) {
+      const canvas = document.getElementById('canvas-area');
+      const img = document.createElement('img');
+      img.src = imgSrc;
+      img.className = 'placed-food';
+
+      img.style.left = 'calc(50% - 40px)';
+      img.style.top = 'calc(50% - 40px)';
+      
+      // 新しく追加した画像を最前面にする
+      highestZIndex++;
+      img.style.zIndex = highestZIndex;
+
+      makeElementInteractive(img);
+      canvas.appendChild(img);
+    }
+
+    // 重ね順変更＆削除＆ドラッグの統合処理
+    function makeElementInteractive(element) {
+      let active = false;
+      let currentX, currentY, initialX, initialY;
+      let xOffset = 0, yOffset = 0;
+      let lastTapTime = 0; // ダブルタップ判定用
+
+      // 1. タップ・クリック時に「最前面（一番上）」へ持ってくる
+      function bringToFront() {
+        highestZIndex++;
+        element.style.zIndex = highestZIndex;
+      }
+
+      // 2. ダブルタップ / ダブルクリック判定（削除処理）
+      function checkDoubleTap() {
+        const currentTime = new Date().getTime();
+        const tapLength = currentTime - lastTapTime;
+        if (tapLength < 300 && tapLength > 0) {
+          // ダブルタップ検知で消去！
+          element.remove();
+          return true;
+        }
+        lastTapTime = currentTime;
+        return false;
+      }
+
+      // イベントリスナー設定
+      element.addEventListener('touchstart', dragStart, {passive: false});
+      element.addEventListener('touchend', dragEnd, {passive: false});
+      element.addEventListener('touchmove', drag, {passive: false});
+
+      element.addEventListener('mousedown', dragStart);
+      element.addEventListener('mouseup', dragEnd);
+      element.addEventListener('mousemove', drag);
+
+      function dragStart(e) {
+        bringToFront(); // 触った瞬間に一番上へ！
+
+        if (checkDoubleTap()) return; // ダブルタップされたら削除してドラッグ処理は中断
+
+        if (e.type === "touchstart") {
+          initialX = e.touches[0].clientX - xOffset;
+          initialY = e.touches[0].clientY - yOffset;
+        } else {
+          initialX = e.clientX - xOffset;
+          initialY = e.clientY - yOffset;
+        }
+        active = true;
+      }
+
+      function dragEnd() {
+        initialX = currentX;
+        initialY = currentY;
+        active = false;
+      }
+
+      function drag(e) {
+        if (!active) return;
+        e.preventDefault();
+
+        if (e.type === "touchmove") {
+          currentX = e.touches[0].clientX - initialX;
+          currentY = e.touches[0].clientY - initialY;
+        } else {
+          currentX = e.clientX - initialX;
+          currentY = e.clientY - initialY;
+        }
+
+        xOffset = currentX;
+        yOffset = currentY;
+
+        element.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
+      }
+    }
+  </script>
+</body>
+</html>
