@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>無理やり！？ごちそうパズル</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: #f7ede2;
+      color: #2b2d42;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 12px 8px;
+      touch-action: manipulation;
+    }
+
+    .game-container {
+      width: 100%;
+      max-width: 480px;
+      background: #ffffff;
+      border-radius: 20px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      position: relative;
+    }
+
+    header {
+      text-align: center;
+      padding-bottom: 8px;
+      border-bottom: 2px dashed #f0d6c7;
+    }
+    h1 {
+      font-size: 20px;
+      color: #f25c54;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+    
+    .status-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 6px;
+    }
+    
+    .theme-title {
+      font-size: 14px;
+      color: #d81159;
+      font-weight: 700;
+      background: #ffe5ec;
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+
+    .stats-display {
+      display: flex;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: bold;
+      color: #495057;
+      background: #f8f9fa;
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid #e9ecef;
+    }
+
+    .canvas-area {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      background-color: #fafafa;
+      border: 3px solid #f0d6c7;
+      border-radius: 16px;
+      overflow: hidden;
+      touch-action: none;
+      box-shadow: inset 0 2px 6px rgba(0,0,0,0.03);
+    }
+
+    .theme-silhouette {
+      position: absolute;
+      top: 10%;
+      left: 10%;
+      width: 80%;
+      height: 80%;
+      object-fit: contain;
+      opacity: 0.35;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    #drawing-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    .placed-food-wrapper {
+      position: absolute;
+      width: 80px;
+      height: 80px;
+      cursor: grab;
+      z-index: 10;
+      user-select: none;
+      -webkit-user-drag: none;
+      touch-action: none;
+    }
+
+    .placed-food-wrapper:active {
+      cursor: grabbing;
+    }
+
+    .placed-food-wrapper img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      pointer-events: none;
+      transition: transform 0.1s ease-out;
+    }
+
+    .placed-food-wrapper.selected {
+      outline: 2px dashed #f25c54;
+      outline-offset: 4px;
+      border-radius: 8px;
+    }
+
+    .resize-controls {
+      display: none;
+      position: absolute;
+      top: -46px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.98);
+      border: 2px solid #f25c54;
+      border-radius: 24px;
+      padding: 4px 8px;
+      gap: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+      z-index: 9999;
+      white-space: nowrap;
+    }
+
+    .placed-food-wrapper.selected .resize-controls {
+      display: flex;
+    }
+
+    .resize-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: none;
+      background: #f25c54;
+      color: white;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      line-height: 1;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+      touch-action: manipulation;
+    }
+    .resize-btn:active {
+      transform: scale(0.9);
+      background: #d81159;
+    }
+
+    .pen-tools {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #f8edeb;
+      padding: 8px 12px;
+      border-radius: 12px;
+    }
+
+    .pen-mode-btn {
+      padding: 8px 14px;
+      border: 1px solid #f25c54;
+      border-radius: 20px;
+      background: #fff;
+      color: #f25c54;
+      font-size: 13px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .pen-mode-btn.active {
+      background: #f25c54;
+      color: #fff;
+    }
+
+    .color-picker {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .color-dot {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid #fff;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      transition: transform 0.1s ease;
+    }
+    .color-dot.selected {
+      transform: scale(1.25);
+      border-color: #2b2d42;
+    }
+
+    .btn-clear-canvas {
+      font-size: 11px;
+      padding: 6px 10px;
+      border-radius: 12px;
+      border: 1px solid #ccc;
+      background: #fff;
+      cursor: pointer;
+      color: #666;
+    }
+
+    .tools-area {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .section-label { font-size: 12px; color: #707070; font-weight: bold; }
+
+    .hand-container {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      padding: 6px 4px 10px 4px;
+      min-height: 85px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .food-card {
+      flex: 0 0 72px;
+      height: 72px;
+      background: #ffffff;
+      border: 2px solid #f0d6c7;
+      border-radius: 14px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.06);
+      transition: transform 0.1s ease, border-color 0.1s ease;
+      user-select: none;
+    }
+    .food-card:active {
+      transform: scale(0.92);
+      border-color: #f25c54;
+    }
+    .food-card img { width: 56px; height: 56px; object-fit: contain; pointer-events: none; }
+
+    .title-input-area {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .title-input-area input {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #f0d6c7;
+      border-radius: 12px;
+      font-size: 15px;
+      outline: none;
+      background: #fafafa;
+      transition: border-color 0.2s ease;
+    }
+    .title-input-area input:focus {
+      border-color: #f25c54;
+      background: #fff;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .btn {
+      flex: 1;
+      padding: 12px 8px;
+      border: none;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 800;
+      cursor: pointer;
+      text-align: center;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+      transition: transform 0.1s ease;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary { background: #f25c54; color: white; }
+    .btn-preview { background: #4a90e2; color: white; }
+    .btn-secondary { background: #e9ecef; color: #495057; }
+    .btn-success { background: #2a9d8f; color: white; }
+
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(4px);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 10000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+      padding: 16px;
+    }
+    .modal-overlay.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-content {
+      background: #fff;
+      width: 100%;
+      max-width: 420px;
+      border-radius: 20px;
+      padding: 20px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 15px 30px rgba(0,0,0,0.3);
+    }
+
+    .modal-title {
+      font-size: 20px;
+      color: #f25c54;
+      font-weight: 800;
+    }
+
+    .result-dish-name {
+      font-size: 16px;
+      color: #2b2d42;
+      font-weight: bold;
+      background: #fff5f5;
+      padding: 8px;
+      border-radius: 10px;
+      border: 2px dashed #f25c54;
+    }
+
+    .score-card {
+      background: #f8edeb;
+      border-radius: 12px;
+      padding: 10px;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+    }
+    .score-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .score-label { font-size: 11px; color: #707070; font-weight: bold; }
+    .score-val { font-size: 16px; font-weight: 800; color: #2b2d42; }
+    .score-total { font-size: 20px; font-weight: 900; color: #f25c54; }
+
+    .preview-img-container {
+      position: relative;
+      width: 100%;
+    }
+
+    .preview-img {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      border-radius: 12px;
+      border: 2px solid #eee;
+      object-fit: contain;
+      user-select: auto;
+      -webkit-user-select: auto;
+      pointer-events: auto;
+    }
+
+    .save-hint {
+      font-size: 11px;
+      color: #888;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="game-container">
+    <header>
+      <h1>無理やり！？ごちそうパズル</h1>
+      <div class="status-bar">
+        <div class="theme-title" id="theme-display">お題：【-----】</div>
+        <div class="stats-display">
+          <span>⏱ <span id="timer-display">0</span>s</span>
+          <span>🖐 <span id="action-display">0</span>回</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="canvas-area" id="canvas-area" onclick="deselectAllFood(event)">
+      <img src="" alt="お題シルエット" class="theme-silhouette" id="theme-img">
+      <canvas id="drawing-canvas"></canvas>
+    </div>
+
+    <div class="pen-tools">
+      <button class="pen-mode-btn" id="mode-btn" onclick="togglePenMode()">✋ 移動モード</button>
+      <div class="color-picker">
+        <div class="color-dot selected" style="background: #e53935;" onclick="selectColor('#e53935', this)"></div>
+        <div class="color-dot" style="background: #795548;" onclick="selectColor('#795548', this)"></div>
+        <div class="color-dot" style="background: #ffeb3b;" onclick="selectColor('#ffeb3b', this)"></div>
+        <div class="color-dot" style="background: #4caf50;" onclick="selectColor('#4caf50', this)"></div>
+        <button class="btn-clear-canvas" onclick="clearCanvas()">描き直し</button>
+      </div>
+    </div>
+
+    <div class="tools-area">
+      <div class="section-label">👇 手札カード（タップで追加 / ダブルタップで削除）</div>
+      <div class="hand-container" id="hand-container"></div>
+    </div>
+
+    <div class="title-input-area">
+      <div class="section-label">✍️ 料理タイトル（言い訳）を入力しよう！</div>
+      <input type="text" id="dish-title" placeholder="例：超大盛り特製スペシャルエビフライ丼">
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-secondary" onclick="resetGame()">リセット</button>
+      <button class="btn btn-preview" onclick="finishDish(true)">完成プレビュー</button>
+      <button class="btn btn-primary" onclick="finishDish(false)">完成！画像保存へ</button>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="result-modal">
+    <div class="modal-content">
+      <div class="modal-title" id="modal-title-text">🎉 ごちそう完成！</div>
+      <div class="result-dish-name" id="modal-dish-name">料理名：未設定</div>
+      
+      <div class="score-card">
+        <div class="score-item">
+          <span class="score-label">経過時間</span>
+          <span class="score-val" id="modal-time">0秒</span>
+        </div>
+        <div class="score-item">
+          <span class="score-label">操作回数</span>
+          <span class="score-val" id="modal-actions">0回</span>
+        </div>
+        <div class="score-item">
+          <span class="score-label">無理やりスコア</span>
+          <span class="score-total" id="modal-score">0 pt</span>
+        </div>
+      </div>
+
+      <div class="preview-img-container">
+        <img src="" id="result-preview" class="preview-img" alt="完成プレビュー">
+        <div class="save-hint">※保存ボタンで保存できない場合は、上の画像を長押しして保存してください</div>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-secondary" onclick="closeModal()">修正する</button>
+        <button class="btn btn-success" onclick="downloadImage()">画像を保存する</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ★画像参照を外部ダミー画像URLに変更（CORS対応）
+    const themeList = [
+      { name: "高級料亭の舟盛り", img: "https://via.placeholder.com/300x300/e0e0e0/333333?text=Boat+Shape" },
+      { name: "世紀末のラーメンどんぶり", img: "https://via.placeholder.com/300x300/d1c4e9/333333?text=Ramen+Bowl" },
+      { name: "絶対に崩れるタワーパフェ", img: "https://via.placeholder.com/300x300/ffcdd2/333333?text=Parfait+Glass" }
+    ];
+
+    const foodList = [
+      { name: "アメリカンドッグ", img: "https://via.placeholder.com/100/ffcc80/333333?text=Hotdog" },
+      { name: "ショートケーキ", img: "https://via.placeholder.com/100/f8bbd0/333333?text=Cake" },
+      { name: "ちくわ", img: "https://via.placeholder.com/100/e1bee7/333333?text=Chikuwa" },
+      { name: "ブロッコリー", img: "https://via.placeholder.com/100/c8e6c9/333333?text=Broccoli" },
+      { name: "目玉焼き", img: "https://via.placeholder.com/100/fff59d/333333?text=Egg" },
+      { name: "たこ焼き", img: "https://via.placeholder.com/100/ffe0b2/333333?text=Takoyaki" },
+      { name: "エビフライ", img: "https://via.placeholder.com/100/ffab91/333333?text=Shrimp" },
+      { name: "バナナ", img: "https://via.placeholder.com/100/ffff8d/333333?text=Banana" },
+      { name: "ピザ", img: "https://via.placeholder.com/100/ff8a80/333333?text=Pizza" },
+      { name: "ドーナツ", img: "https://via.placeholder.com/100/ea80fc/333333?text=Donut" }
+    ];
+
+    let highestZIndex = 10;
+    let drawCanvas, ctx;
+    let isPenMode = false;
+    let isDrawing = false;
+    let currentColor = '#e53935';
+    let generatedCanvas = null;
+    let selectedFoodElement = null;
+
+    let timerInterval = null;
+    let elapsedTime = 0;
+    let actionCount = 0;
+
+    window.onload = function() {
+      initCanvas();
+      resetGame();
+    };
+
+    function startTimer() {
+      stopTimer();
+      elapsedTime = 0;
+      document.getElementById('timer-display').innerText = elapsedTime;
+      timerInterval = setInterval(() => {
+        elapsedTime++;
+        document.getElementById('timer-display').innerText = elapsedTime;
+      }, 1000);
+    }
+
+    function stopTimer() {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+    }
+
+    function incrementAction() {
+      actionCount++;
+      document.getElementById('action-display').innerText = actionCount;
+    }
+
+    function initCanvas() {
+      drawCanvas = document.getElementById('drawing-canvas');
+      ctx = drawCanvas.getContext('2d');
+
+      const canvasArea = document.getElementById('canvas-area');
+      drawCanvas.width = canvasArea.clientWidth;
+      drawCanvas.height = canvasArea.clientHeight;
+
+      drawCanvas.addEventListener('mousedown', startDrawing);
+      drawCanvas.addEventListener('mousemove', draw);
+      drawCanvas.addEventListener('mouseup', stopDrawing);
+      drawCanvas.addEventListener('mouseleave', stopDrawing);
+
+      drawCanvas.addEventListener('touchstart', startDrawing, {passive: false});
+      drawCanvas.addEventListener('touchmove', draw, {passive: false});
+      drawCanvas.addEventListener('touchend', stopDrawing, {passive: false});
+    }
+
+    function togglePenMode() {
+      isPenMode = !isPenMode;
+      const modeBtn = document.getElementById('mode-btn');
+
+      if (isPenMode) {
+        modeBtn.innerText = "✏️ ペンモード";
+        modeBtn.classList.add('active');
+        drawCanvas.style.pointerEvents = "auto";
+        drawCanvas.style.zIndex = 999;
+        deselectAllFood();
+      } else {
+        modeBtn.innerText = "✋ 移動モード";
+        modeBtn.classList.remove('active');
+        drawCanvas.style.pointerEvents = "none";
+        drawCanvas.style.zIndex = 2;
+      }
+    }
+
+    function selectColor(color, el) {
+      currentColor = color;
+      document.querySelectorAll('.color-dot').forEach(dot => dot.classList.remove('selected'));
+      el.classList.add('selected');
+    }
+
+    function clearCanvas() {
+      ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+      incrementAction();
+    }
+
+    function getCanvasCoords(e) {
+      const rect = drawCanvas.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      return {
+        x: clientX - rect.left,
+        y: clientY - rect.top
+      };
+    }
+
+    function startDrawing(e) {
+      if (!isPenMode) return;
+      e.preventDefault();
+      isDrawing = true;
+      incrementAction();
+      const pos = getCanvasCoords(e);
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y);
+      ctx.strokeStyle = currentColor;
+      ctx.lineWidth = 6;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+    }
+
+    function draw(e) {
+      if (!isDrawing || !isPenMode) return;
+      e.preventDefault();
+      const pos = getCanvasCoords(e);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
+    }
+
+    function stopDrawing() { isDrawing = false; }
+
+    function resetGame() {
+      document.querySelectorAll('.placed-food-wrapper').forEach(el => el.remove());
+      highestZIndex = 10;
+      clearCanvas();
+      document.getElementById('dish-title').value = "";
+
+      actionCount = 0;
+      document.getElementById('action-display').innerText = actionCount;
+      startTimer();
+
+      const randomTheme = themeList[Math.floor(Math.random() * themeList.length)];
+      document.getElementById('theme-display').innerText = "お題：【" + randomTheme.name + "】";
+      document.getElementById('theme-img').src = randomTheme.img;
+
+      const shuffledFoods = [...foodList].sort(() => 0.5 - Math.random());
+      const selectedHand = shuffledFoods.slice(0, 5);
+
+      const handContainer = document.getElementById('hand-container');
+      handContainer.innerHTML = "";
+
+      selectedHand.forEach(food => {
+        const cardDiv = document.createElement('div');
+        cardDiv.className = 'food-card';
+        cardDiv.innerHTML = `<img src="${food.img}" alt="${food.name}">`;
+        cardDiv.onclick = function() { addFoodToCanvas(food.img); };
+        handContainer.appendChild(cardDiv);
+      });
+    }
+
+    function addFoodToCanvas(imgSrc, initialSize = 80, initialRotation = 0, initialX = 0, initialY = 0) {
+      incrementAction();
+      const canvas = document.getElementById('canvas-area');
+      
+      const wrapper = document.createElement('div');
+      wrapper.className = 'placed-food-wrapper';
+      wrapper.style.width = initialSize + 'px';
+      wrapper.style.height = initialSize + 'px';
+      wrapper.style.left = 'calc(50% - ' + (initialSize / 2) + 'px)';
+      wrapper.style.top = 'calc(50% - ' + (initialSize / 2) + 'px)';
+      
+      wrapper.dataset.x = initialX;
+      wrapper.dataset.y = initialY;
+      applyTransform(wrapper);
+
+      const img = document.createElement('img');
+      img.crossOrigin = "anonymous"; // CORS対応
+      img.src = imgSrc;
+      img.dataset.rotation = initialRotation;
+      img.style.transform = `rotate(${initialRotation}deg)`;
+
+      const controls = document.createElement('div');
+      controls.className = 'resize-controls';
+      controls.innerHTML = `
+        <button class="resize-btn" onclick="duplicateFood(event)" title="複製">📋</button>
+        <button class="resize-btn" onclick="resizeFood(event, -15)" title="縮小">－</button>
+        <button class="resize-btn" onclick="resizeFood(event, 15)" title="拡大">＋</button>
+        <button class="resize-btn" onclick="rotateFood(event, -45)" title="左回転">↺</button>
+        <button class="resize-btn" onclick="rotateFood(event, 45)" title="右回転">↻</button>
+      `;
+
+      wrapper.appendChild(img);
+      wrapper.appendChild(controls);
+
+      highestZIndex++;
+      wrapper.style.zIndex = highestZIndex;
+
+      makeElementInteractive(wrapper);
+      canvas.appendChild(wrapper);
+
+      selectFood(wrapper);
+    }
+
+    function duplicateFood(e) {
+      e.stopPropagation();
+      if (!selectedFoodElement) return;
+
+      const img = selectedFoodElement.querySelector('img');
+      const imgSrc = img.src;
+      const size = selectedFoodElement.offsetWidth;
+      const rotation = parseInt(img.dataset.rotation || 0);
+
+      const currentX = parseFloat(selectedFoodElement.dataset.x || 0);
+      const currentY = parseFloat(selectedFoodElement.dataset.y || 0);
+
+      addFoodToCanvas(imgSrc, size, rotation, currentX + 20, currentY + 20);
+    }
+
+    function deselectAllFood(e) {
+      if (e && e.target.closest('.placed-food-wrapper')) return;
+      document.querySelectorAll('.placed-food-wrapper').forEach(el => el.classList.remove('selected'));
+      selectedFoodElement = null;
+    }
+
+    function selectFood(element) {
+      document.querySelectorAll('.placed-food-wrapper').forEach(el => el.classList.remove('selected'));
+      element.classList.add('selected');
+      selectedFoodElement = element;
+    }
+
+    function resizeFood(e, delta) {
+      e.stopPropagation();
+      if (!selectedFoodElement) return;
+      incrementAction();
+
+      let currentWidth = selectedFoodElement.offsetWidth;
+      let newSize = currentWidth + delta;
+
+      if (newSize >= 30 && newSize <= 240) {
+        selectedFoodElement.style.width = newSize + 'px';
+        selectedFoodElement.style.height = newSize + 'px';
+      }
+    }
+
+    function rotateFood(e, angleDelta) {
+      e.stopPropagation();
+      if (!selectedFoodElement) return;
+      incrementAction();
+
+      const img = selectedFoodElement.querySelector('img');
+      let currentRotation = parseInt(img.dataset.rotation || 0);
+      let newRotation = (currentRotation + angleDelta) % 360;
+      img.dataset.rotation = newRotation;
+
+      img.style.transform = `rotate(${newRotation}deg)`;
+    }
+
+    function applyTransform(el) {
+      const x = parseFloat(el.dataset.x || 0);
+      const y = parseFloat(el.dataset.y || 0);
+      el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+    }
+
+    function makeElementInteractive(element) {
+      let active = false;
+      let currentX, currentY, initialX, initialY;
+      let lastTapTime = 0;
+
+      function bringToFront() {
+        highestZIndex++;
+        element.style.zIndex = highestZIndex;
+      }
+
+      function checkDoubleTap() {
+        const currentTime = new Date().getTime();
+        const tapLength = currentTime - lastTapTime;
+        if (tapLength < 300 && tapLength > 0) {
+          element.remove();
+          selectedFoodElement = null;
+          incrementAction();
+          return true;
+        }
+        lastTapTime = currentTime;
+        return false;
+      }
+
+      element.addEventListener('touchstart', dragStart, {passive: false});
+      element.addEventListener('touchend', dragEnd, {passive: false});
+      element.addEventListener('touchmove', drag, {passive: false});
+
+      element.addEventListener('mousedown', dragStart);
+      window.addEventListener('mouseup', dragEnd);
+      window.addEventListener('mousemove', drag);
+
+      function dragStart(e) {
+        if (isPenMode) return;
+        if (e.target.classList.contains('resize-btn')) return;
+
+        selectFood(element);
+        bringToFront();
+
+        if (checkDoubleTap()) return;
+
+        const xOffset = parseFloat(element.dataset.x || 0);
+        const yOffset = parseFloat(element.dataset.y || 0);
+
+        if (e.type === "touchstart") {
+          initialX = e.touches[0].clientX - xOffset;
+          initialY = e.touches[0].clientY - yOffset;
+        } else {
+          initialX = e.clientX - xOffset;
+          initialY = e.clientY - yOffset;
+        }
+        active = true;
+      }
+
+      function dragEnd() {
+        if (active) {
+          incrementAction();
+        }
+        active = false;
+      }
+
+      function drag(e) {
+        if (!active || isPenMode) return;
+        if (e.type === "touchmove") e.preventDefault();
+
+        if (e.type === "touchmove") {
+          currentX = e.touches[0].clientX - initialX;
+          currentY = e.touches[0].clientY - initialY;
+        } else {
+          currentX = e.clientX - initialX;
+          currentY = e.clientY - initialY;
+        }
+
+        element.dataset.x = currentX;
+        element.dataset.y = currentY;
+
+        applyTransform(element);
+      }
+    }
+
+    function finishDish(isPreviewOnly = false) {
+      stopTimer();
+      deselectAllFood();
+
+      const calculatedScore = elapsedTime * (actionCount + 1) * 10;
+      const titleInput = document.getElementById('dish-title').value.trim();
+      const dishName = titleInput !== "" ? titleInput : "名無しの無理やり料理";
+
+      document.getElementById('modal-title-text').innerText = isPreviewOnly ? "👀 完成プレビュー" : "🎉 ごちそう完成！";
+      document.getElementById('modal-dish-name').innerText = "『 " + dishName + " 』";
+      document.getElementById('modal-time').innerText = elapsedTime + "秒";
+      document.getElementById('modal-actions').innerText = actionCount + "回";
+      document.getElementById('modal-score').innerText = calculatedScore.toLocaleString() + " pt";
+
+      const canvasArea = document.getElementById('canvas-area');
+
+      // ★画像内オーバーレイ帯を作成
+      const overlay = document.createElement('div');
+      overlay.style.position = 'absolute';
+      overlay.style.bottom = '0';
+      overlay.style.left = '0';
+      overlay.style.width = '100%';
+      overlay.style.background = 'rgba(43, 45, 66, 0.82)';
+      overlay.style.color = '#fff';
+      overlay.style.padding = '8px 12px';
+      overlay.style.boxSizing = 'border-box';
+      overlay.style.zIndex = '99999';
+      overlay.style.display = 'flex';
+      overlay.style.justifyContent = 'space-between';
+      overlay.style.alignItems = 'center';
+      overlay.style.fontSize = '12px';
+      overlay.style.fontWeight = 'bold';
+
+      overlay.innerHTML = `
+        <div style="max-width: 65%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px;">
+          🍽️ ${dishName}
+        </div>
+        <div style="color: #ffeb3b; font-size: 13px;">
+          Score: ${calculatedScore.toLocaleString()} pt
+        </div>
+      `;
+      canvasArea.appendChild(overlay);
+
+      html2canvas(canvasArea, {
+        useCORS: true,
+        scale: 2,
+        allowTaint: true
+      }).then(canvas => {
+        overlay.remove();
+
+        generatedCanvas = canvas;
+        const dataURL = canvas.toDataURL("image/png");
+        document.getElementById('result-preview').src = dataURL;
+        document.getElementById('result-modal').classList.add('show');
+      }).catch(err => {
+        overlay.remove();
+        console.error("画像生成エラー:", err);
+        alert("画像の生成に失敗しました。");
+      });
+    }
+
+    function closeModal() {
+      document.getElementById('result-modal').classList.remove('show');
+      timerInterval = setInterval(() => {
+        elapsedTime++;
+        document.getElementById('timer-display').innerText = elapsedTime;
+      }, 1000);
+    }
+
+    function downloadImage() {
+      if (!generatedCanvas) return;
+
+      try {
+        generatedCanvas.toBlob(function(blob) {
+          if (!blob) {
+            alert("画像の保存に失敗しました。プレビュー画像を長押し/右クリックして保存してください。");
+            return;
+          }
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = 'gochiso_puzzle.png';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          setTimeout(() => URL.revokeObjectURL(url), 100);
+        }, 'image/png');
+      } catch (e) {
+        console.error("ダウンロード実行エラー:", e);
+        const dataURL = generatedCanvas.toDataURL("image/png");
+        const link = document.createElement('a');
+        link.href = dataURL;
+        link.download = 'gochiso_puzzle.png';
+        link.click();
+      }
+    }
+  </script>
+</body>
+</html>
