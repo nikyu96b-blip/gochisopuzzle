@@ -482,7 +482,6 @@
   </div>
 
   <script>
-    // ★ 舟盛りだけローカルパス ./images/theme_boat.png に修正
     const themeList = [
       { name: "高級料亭の舟盛り", img: "./images/theme_boat.png" },
       { name: "世紀末のラーメンどんぶり", img: "./images/theme_ramen.png" },
@@ -514,10 +513,11 @@
     let elapsedTime = 0;
     let actionCount = 0;
 
-    window.onload = function() {
+    // 画面ロード時に1回だけ実行する初期化
+    window.addEventListener('DOMContentLoaded', () => {
       initCanvas();
       resetGame();
-    };
+    });
 
     function startTimer() {
       stopTimer();
@@ -549,14 +549,11 @@
       drawCanvas.width = canvasArea.clientWidth;
       drawCanvas.height = canvasArea.clientHeight;
 
-      drawCanvas.addEventListener('mousedown', startDrawing);
-      drawCanvas.addEventListener('mousemove', draw);
-      drawCanvas.addEventListener('mouseup', stopDrawing);
-      drawCanvas.addEventListener('mouseleave', stopDrawing);
-
-      drawCanvas.addEventListener('touchstart', startDrawing, {passive: false});
-      drawCanvas.addEventListener('touchmove', draw, {passive: false});
-      drawCanvas.addEventListener('touchend', stopDrawing, {passive: false});
+      // タッチ/マウスイベントを一括管理（PointerEvents使用でスマホ対応強化）
+      drawCanvas.addEventListener('pointerdown', startDrawing);
+      drawCanvas.addEventListener('pointermove', draw);
+      drawCanvas.addEventListener('pointerup', stopDrawing);
+      drawCanvas.addEventListener('pointerleave', stopDrawing);
     }
 
     function togglePenMode() {
@@ -584,17 +581,16 @@
     }
 
     function clearCanvas() {
+      if (!ctx || !drawCanvas) return;
       ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
       incrementAction();
     }
 
     function getCanvasCoords(e) {
       const rect = drawCanvas.getBoundingClientRect();
-      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
       return {
-        x: clientX - rect.left,
-        y: clientY - rect.top
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
       };
     }
 
@@ -623,19 +619,30 @@
     function stopDrawing() { isDrawing = false; }
 
     function resetGame() {
+      // 食材要素を全てクリア
       document.querySelectorAll('.placed-food-wrapper').forEach(el => el.remove());
       highestZIndex = 10;
-      clearCanvas();
+      
+      // キャンバス描画領域をクリア
+      if (ctx && drawCanvas) {
+        ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+      }
+
+      // モードを移動モードにリセット
+      if (isPenMode) togglePenMode();
+
       document.getElementById('dish-title').value = "";
 
       actionCount = 0;
       document.getElementById('action-display').innerText = actionCount;
       startTimer();
 
+      // ランダムなお題の選出
       const randomTheme = themeList[Math.floor(Math.random() * themeList.length)];
       document.getElementById('theme-display').innerText = "お題：【" + randomTheme.name + "】";
       document.getElementById('theme-img').src = randomTheme.img;
 
+      // 手札のシャッフル＆配置
       const shuffledFoods = [...foodList].sort(() => 0.5 - Math.random());
       const selectedHand = shuffledFoods.slice(0, 5);
 
@@ -646,7 +653,13 @@
         const cardDiv = document.createElement('div');
         cardDiv.className = 'food-card';
         cardDiv.innerHTML = `<img src="${food.img}" alt="${food.name}">`;
-        cardDiv.onclick = function() { addFoodToCanvas(food.img); };
+        
+        // スマホ・PC双方で即座に反応するようにイベント指定
+        cardDiv.addEventListener('pointerdown', (e) => {
+          e.preventDefault();
+          addFoodToCanvas(food.img);
+        });
+        
         handContainer.appendChild(cardDiv);
       });
     }
@@ -777,13 +790,9 @@
         return false;
       }
 
-      element.addEventListener('touchstart', dragStart, {passive: false});
-      element.addEventListener('touchend', dragEnd, {passive: false});
-      element.addEventListener('touchmove', drag, {passive: false});
-
-      element.addEventListener('mousedown', dragStart);
-      window.addEventListener('mouseup', dragEnd);
-      window.addEventListener('mousemove', drag);
+      element.addEventListener('pointerdown', dragStart);
+      window.addEventListener('pointermove', drag);
+      window.addEventListener('pointerup', dragEnd);
 
       function dragStart(e) {
         if (isPenMode) return;
@@ -797,13 +806,8 @@
         const xOffset = parseFloat(element.dataset.x || 0);
         const yOffset = parseFloat(element.dataset.y || 0);
 
-        if (e.type === "touchstart") {
-          initialX = e.touches[0].clientX - xOffset;
-          initialY = e.touches[0].clientY - yOffset;
-        } else {
-          initialX = e.clientX - xOffset;
-          initialY = e.clientY - yOffset;
-        }
+        initialX = e.clientX - xOffset;
+        initialY = e.clientY - yOffset;
         active = true;
       }
 
@@ -816,15 +820,10 @@
 
       function drag(e) {
         if (!active || isPenMode) return;
-        if (e.type === "touchmove") e.preventDefault();
+        e.preventDefault();
 
-        if (e.type === "touchmove") {
-          currentX = e.touches[0].clientX - initialX;
-          currentY = e.touches[0].clientY - initialY;
-        } else {
-          currentX = e.clientX - initialX;
-          currentY = e.clientY - initialY;
-        }
+        currentX = e.clientX - initialX;
+        currentY = e.clientY - initialY;
 
         element.dataset.x = currentX;
         element.dataset.y = currentY;
@@ -841,7 +840,6 @@
       const titleInput = document.getElementById('dish-title').value.trim();
       const dishName = titleInput !== "" ? titleInput : "名無しの無理やり料理";
 
-      // ★ プレビュー表示時には「保存ボタン」と「長押しヒント」を非表示にする
       const saveBtn = document.getElementById('btn-save-img');
       const saveHint = document.getElementById('modal-hint');
       if (isPreviewOnly) {
