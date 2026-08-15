@@ -196,6 +196,7 @@
       font-weight: bold;
       cursor: pointer;
       transition: all 0.2s ease;
+      touch-action: manipulation;
     }
     .pen-mode-btn.active {
       background: #f25c54;
@@ -215,6 +216,7 @@
       border: 2px solid #fff;
       box-shadow: 0 2px 4px rgba(0,0,0,0.2);
       transition: transform 0.1s ease;
+      touch-action: manipulation;
     }
     .color-dot.selected {
       transform: scale(1.25);
@@ -229,6 +231,7 @@
       background: #fff;
       cursor: pointer;
       color: #666;
+      touch-action: manipulation;
     }
 
     .tools-area {
@@ -260,6 +263,7 @@
       box-shadow: 0 4px 8px rgba(0,0,0,0.06);
       transition: transform 0.1s ease, border-color 0.1s ease;
       user-select: none;
+      touch-action: manipulation;
     }
     .food-card:active {
       transform: scale(0.92);
@@ -303,6 +307,7 @@
       text-align: center;
       box-shadow: 0 4px 10px rgba(0,0,0,0.08);
       transition: transform 0.1s ease;
+      touch-action: manipulation;
     }
     .btn:active { transform: scale(0.97); }
     .btn-primary { background: #f25c54; color: white; }
@@ -310,6 +315,7 @@
     .btn-secondary { background: #e9ecef; color: #495057; }
     .btn-success { background: #2a9d8f; color: white; }
 
+    /* ★ 修正：非表示時は display: none で完全に消去 */
     .modal-overlay {
       position: fixed;
       top: 0;
@@ -318,18 +324,14 @@
       height: 100vh;
       background: rgba(0, 0, 0, 0.75);
       backdrop-filter: blur(4px);
-      display: flex;
+      display: none;
       justify-content: center;
       align-items: center;
       z-index: 10000;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.3s ease;
       padding: 16px;
     }
     .modal-overlay.show {
-      opacity: 1;
-      pointer-events: auto;
+      display: flex;
     }
 
     .modal-content {
@@ -475,7 +477,6 @@
 
       <div class="actions" id="modal-actions-area">
         <button class="btn btn-secondary" onclick="closeModal()">修正する</button>
-        <!-- ★プレビュー時には「保存ボタン」を動的に非表示にする処理をJSに追加しました -->
         <button class="btn btn-success" id="btn-save-img" onclick="downloadImage()">画像を保存する</button>
       </div>
     </div>
@@ -513,7 +514,6 @@
     let elapsedTime = 0;
     let actionCount = 0;
 
-    // 画面ロード時に1回だけ実行する初期化
     window.addEventListener('DOMContentLoaded', () => {
       initCanvas();
       resetGame();
@@ -549,7 +549,6 @@
       drawCanvas.width = canvasArea.clientWidth;
       drawCanvas.height = canvasArea.clientHeight;
 
-      // タッチ/マウスイベントを一括管理（PointerEvents使用でスマホ対応強化）
       drawCanvas.addEventListener('pointerdown', startDrawing);
       drawCanvas.addEventListener('pointermove', draw);
       drawCanvas.addEventListener('pointerup', stopDrawing);
@@ -619,16 +618,14 @@
     function stopDrawing() { isDrawing = false; }
 
     function resetGame() {
-      // 食材要素を全てクリア
       document.querySelectorAll('.placed-food-wrapper').forEach(el => el.remove());
+      document.querySelectorAll('.canvas-overlay').forEach(el => el.remove());
       highestZIndex = 10;
       
-      // キャンバス描画領域をクリア
       if (ctx && drawCanvas) {
         ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
       }
 
-      // モードを移動モードにリセット
       if (isPenMode) togglePenMode();
 
       document.getElementById('dish-title').value = "";
@@ -637,12 +634,10 @@
       document.getElementById('action-display').innerText = actionCount;
       startTimer();
 
-      // ランダムなお題の選出
       const randomTheme = themeList[Math.floor(Math.random() * themeList.length)];
       document.getElementById('theme-display').innerText = "お題：【" + randomTheme.name + "】";
       document.getElementById('theme-img').src = randomTheme.img;
 
-      // 手札のシャッフル＆配置
       const shuffledFoods = [...foodList].sort(() => 0.5 - Math.random());
       const selectedHand = shuffledFoods.slice(0, 5);
 
@@ -654,7 +649,6 @@
         cardDiv.className = 'food-card';
         cardDiv.innerHTML = `<img src="${food.img}" alt="${food.name}">`;
         
-        // スマホ・PC双方で即座に反応するようにイベント指定
         cardDiv.addEventListener('pointerdown', (e) => {
           e.preventDefault();
           addFoodToCanvas(food.img);
@@ -858,7 +852,11 @@
 
       const canvasArea = document.getElementById('canvas-area');
 
+      // 既存の帯があれば削除
+      document.querySelectorAll('.canvas-overlay').forEach(el => el.remove());
+
       const overlay = document.createElement('div');
+      overlay.className = 'canvas-overlay';
       overlay.style.position = 'absolute';
       overlay.style.bottom = '0';
       overlay.style.left = '0';
@@ -868,6 +866,7 @@
       overlay.style.padding = '8px 12px';
       overlay.style.boxSizing = 'border-box';
       overlay.style.zIndex = '99999';
+      overlay.style.pointerEvents = 'none';
       overlay.style.display = 'flex';
       overlay.style.justifyContent = 'space-between';
       overlay.style.alignItems = 'center';
@@ -894,6 +893,8 @@
         generatedCanvas = canvas;
         const dataURL = canvas.toDataURL("image/png");
         document.getElementById('result-preview').src = dataURL;
+        
+        // ★ 修正：キャプチャ成功後にモーダルを表示
         document.getElementById('result-modal').classList.add('show');
       }).catch(err => {
         overlay.remove();
@@ -903,11 +904,18 @@
     }
 
     function closeModal() {
+      // ★ 修正：モーダルを完全非表示にする
       document.getElementById('result-modal').classList.remove('show');
-      timerInterval = setInterval(() => {
-        elapsedTime++;
-        document.getElementById('timer-display').innerText = elapsedTime;
-      }, 1000);
+      
+      // 残っている一時要素の完全削除
+      document.querySelectorAll('.canvas-overlay').forEach(el => el.remove());
+
+      if (!timerInterval) {
+        timerInterval = setInterval(() => {
+          elapsedTime++;
+          document.getElementById('timer-display').innerText = elapsedTime;
+        }, 1000);
+      }
     }
 
     function downloadImage() {
